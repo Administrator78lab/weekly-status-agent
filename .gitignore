@@ -1,0 +1,8 @@
+# Local configuration containing real tenant and app identifiers
+config.local.js
+
+# Local debugging tools
+capture-server.cjs
+
+node_modules/
+*.log

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weekly Status Agent</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px;
+           margin: 3rem auto; padding: 0 1rem; line-height: 1.6; }
+    button { font-size: 1rem; padding: .5rem 1rem; margin-right: .5rem;
+             cursor: pointer; border-radius: 6px; border: 1px solid #ccc; }
+    pre { background: #f4f4f4; padding: 1rem; border-radius: 6px;
+          white-space: pre-wrap; word-break: break-all; }
+    #who { color: #0a7d28; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Weekly Status Agent</h1>
+
+  <p>
+    <button id="signInBtn">Sign in</button>
+    <button id="signOutBtn" hidden>Sign out</button>
+    <span id="who"></span>
+  </p>
+
+  <p><button id="tokenBtn" hidden>Get Work IQ token</button></p>
+
+  <p>
+    <input id="q" value="What meetings do I have this week?"
+           style="width:60%;padding:.4rem;font-size:1rem">
+    <button id="askBtn" hidden>Ask Work IQ</button>
+  </p>
+
+  <pre id="out"></pre>
+
+  <!-- Libraries first: msal defines the global `msal`, config.js defines CONFIG,
+       auth.js uses both. The inline script below depends on all three. -->
+  <script src="msal-browser.min.js"></script>
+  <script src="config.js"></script>
+  <!-- Optional local overrides with real tenant values. Gitignored.
+       onerror keeps the page working when the file is absent. -->
+  <script src="config.local.js" onerror="void 0"></script>
+  <script src="auth.js"></script>
+  <script src="workiq.js"></script>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const log = obj => $("out").textContent =
+      typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+
+    // Decode a JWT payload. Base64url -> base64 -> JSON.
+    function decodeJwt(token) {
+      const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      return JSON.parse(atob(payload));
+    }
+
+    function render(account) {
+      const signedIn = !!account;
+      $("signInBtn").hidden = signedIn;
+      $("signOutBtn").hidden = !signedIn;
+      $("tokenBtn").hidden = !signedIn;
+      $("askBtn").hidden = !signedIn;
+      $("who").textContent = signedIn ? `Signed in as ${account.username}` : "";
+    }
+
+    $("signInBtn").onclick = async () => {
+      try { render(await signIn()); }
+      catch (e) { log("Sign-in failed: " + e.message); }
+    };
+
+    $("signOutBtn").onclick = async () => { await signOut(); render(null); log(""); };
+
+    $("tokenBtn").onclick = async () => {
+      try {
+        const token = await getWorkIqToken();
+        const claims = decodeJwt(token);
+        log({
+          audience: claims.aud,
+          scopes: claims.scp,
+          tenant: claims.tid,
+          user: claims.upn || claims.preferred_username,
+          expires: new Date(claims.exp * 1000).toLocaleString(),
+          tokenPreview: token.slice(0, 40) + "..."
+        });
+      } catch (e) { log("Token failed: " + e.message); }
+    };
+
+    $("askBtn").onclick = async () => {
+      log("Asking Work IQ...");
+      try {
+        const r = await askWorkIq($("q").value);
+        log((r.text || "(empty answer)") + "\n\n--- request-id: " + r.requestId);
+      } catch (e) { log(e.message); }
+    };
+
+    initAuth().then(render).catch(e => log("Init failed: " + e.message));
+  </script>
+</body>
+</html>
