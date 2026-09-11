@@ -61,3 +61,20 @@ async function askWorkIq(question, contextId = null, agentId = DEFAULT_AGENT) {
 
   return { text, contextId: task?.contextId, requestId, raw: json };
 }
+
+// Lists agents available to the signed-in user. Useful for discovering agent
+// ids to put in the A2A URL path, including declarative agents you publish.
+async function listWorkIqAgents() {
+  const token = await getWorkIqToken();
+  const url = CONFIG.a2aEndpoint.replace(/\/a2a\/$/, "/a2a/agents");
+
+  const response = await fetch(url, {
+    headers: { "Authorization": `Bearer ${token}`, "A2A-Version": "1.0" },
+  });
+
+  const requestId = response.headers.get("request-id");
+  const text = await response.text();
+  let out;
+  try { out = JSON.stringify(JSON.parse(text), null, 2); } catch { out = text; }
+  return `HTTP ${response.status} (request-id ${requestId})\n\n${out}`;
+}

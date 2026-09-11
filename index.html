@@ -31,6 +31,24 @@
     <button id="askBtn" hidden>Ask Work IQ</button>
   </p>
 
+  <p id="agentRow" hidden>
+    <label style="font-size:.9rem">Agent id:
+      <input id="agent" value="bizchat-as-gpt-scenario"
+             style="width:340px;padding:.3rem;font-family:monospace">
+    </label>
+    <button id="listBtn">List agents</button>
+  </p>
+
+  <hr>
+
+  <h3 style="font-size:1rem;margin-bottom:.3rem">MCP (Model Context Protocol)</h3>
+  <p id="mcpRow" hidden>
+    <button id="mcpInitBtn">1. Initialize</button>
+    <button id="mcpToolsBtn">2. List tools</button>
+    <button id="mcpAskBtn">3. Call ask tool</button>
+    <button id="mcpFetchBtn">4. Fetch emails (no LLM)</button>
+  </p>
+
   <pre id="out"></pre>
 
   <!-- Libraries first: msal defines the global `msal`, config.js defines CONFIG,
@@ -42,6 +60,7 @@
   <script src="config.local.js" onerror="void 0"></script>
   <script src="auth.js"></script>
   <script src="workiq.js"></script>
+  <script src="workiq-mcp.js"></script>
 
   <script>
     const $ = id => document.getElementById(id);
@@ -60,6 +79,8 @@
       $("signOutBtn").hidden = !signedIn;
       $("tokenBtn").hidden = !signedIn;
       $("askBtn").hidden = !signedIn;
+      $("agentRow").hidden = !signedIn;
+      $("mcpRow").hidden = !signedIn;
       $("who").textContent = signedIn ? `Signed in as ${account.username}` : "";
     }
 
@@ -88,9 +109,57 @@
     $("askBtn").onclick = async () => {
       log("Asking Work IQ...");
       try {
-        const r = await askWorkIq($("q").value);
+        const r = await askWorkIq($("q").value, null, $("agent").value.trim());
         log((r.text || "(empty answer)") + "\n\n--- request-id: " + r.requestId);
       } catch (e) { log(e.message); }
+    };
+
+    $("listBtn").onclick = async () => {
+      log("Listing agents...");
+      try { log(await listWorkIqAgents()); }
+      catch (e) { log(e.message); }
+    };
+
+    $("mcpInitBtn").onclick = async () => {
+      log("MCP initialize...");
+      try {
+        const r = await mcpInitialize();
+        log("MCP INITIALIZE OK\n\nsession: " + r.sessionId +
+            "\nrequest-id: " + r.requestId +
+            "\n\n" + JSON.stringify(r.result, null, 2));
+      } catch (e) { log("MCP initialize failed:\n\n" + e.message); }
+    };
+
+    $("mcpToolsBtn").onclick = async () => {
+      log("MCP tools/list...");
+      try {
+        const r = await mcpListTools();
+        log("TOOLS (" + r.tools.length + ")\n\n" +
+            r.tools.map(t => `- ${t.name}: ${t.description ?? ""}`).join("\n") +
+            "\n\n" + JSON.stringify(r.tools, null, 2));
+      } catch (e) { log("MCP tools/list failed:\n\n" + e.message); }
+    };
+
+    $("mcpAskBtn").onclick = async () => {
+      log("MCP tools/call ...");
+      try {
+        // Send only the required parameter first. Optional ones (agentId,
+        // timeZone) are added back once the minimal call is known to work.
+        const r = await mcpCallTool("ask", { question: $("q").value });
+        log((r.text || JSON.stringify(r.raw, null, 2)) +
+            "\n\n--- request-id: " + r.requestId);
+      } catch (e) { log("MCP tools/call failed:\n\n" + e.message); }
+    };
+
+    $("mcpFetchBtn").onclick = async () => {
+      log("MCP fetch /me/messages ...");
+      try {
+        const r = await mcpCallTool("fetch", {
+          entityUrls: ["/me/messages?$select=subject,from,receivedDateTime&$top=10"],
+        });
+        log((r.text || JSON.stringify(r.raw, null, 2)) +
+            "\n\n--- request-id: " + r.requestId);
+      } catch (e) { log("MCP fetch failed:\n\n" + e.message); }
     };
 
     initAuth().then(render).catch(e => log("Init failed: " + e.message));

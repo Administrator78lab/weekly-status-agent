@@ -11,6 +11,7 @@ const CONFIG = {
   // Microsoft Work IQ - these are Microsoft's own public identifiers
   workIqResourceAppId: "fdcc1f02-fc51-4226-8753-f668596af7f7",
   a2aEndpoint: "https://workiq.svc.cloud.microsoft/a2a/",
+  mcpEndpoint: "https://workiq.svc.cloud.microsoft/mcp",
 };
 
 // Scope format is "<resource-app-id>/<scope-name>". Entra uses this to decide
